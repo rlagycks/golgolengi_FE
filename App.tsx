@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 
+import { AuthProvider, useAuth } from './src/context/AuthContext';
 import { BottomTabBar, TabRoute } from './src/components/BottomTabBar';
 import { HomeScreen } from './src/features/home/HomeScreen';
 import { ChallengeScreen } from './src/features/challenge/ChallengeScreen';
@@ -9,6 +10,8 @@ import { FamilyScreen } from './src/features/family/FamilyScreen';
 import { ReportScreen } from './src/features/report/ReportScreen';
 import { MyScreen } from './src/features/my/MyScreen';
 import { OnboardingScreen } from './src/features/onboarding/OnboardingScreen';
+import { LoginScreen } from './src/features/login/LoginScreen';
+import { LoadingView } from './src/components/StateViews';
 
 function MainApp() {
   const [activeRoute, setActiveRoute] = useState<TabRoute>('home');
@@ -31,18 +34,21 @@ function MainApp() {
   );
 }
 
-export default function App() {
-  const [onboarded, setOnboarded] = useState(false);
+function AppNavigator() {
+  const { isLoading, isAuthenticated, isOnboarded, setOnboarded } = useAuth();
 
+  if (isLoading) return <LoadingView />;
+  if (!isAuthenticated) return <LoginScreen />;
+  if (!isOnboarded) return <OnboardingScreen onComplete={setOnboarded} />;
+  return <MainApp />;
+}
+
+export default function App() {
   return (
-    <>
+    <AuthProvider>
       <StatusBar style="dark" />
-      {onboarded ? (
-        <MainApp />
-      ) : (
-        <OnboardingScreen onComplete={() => setOnboarded(true)} />
-      )}
-    </>
+      <AppNavigator />
+    </AuthProvider>
   );
 }
 

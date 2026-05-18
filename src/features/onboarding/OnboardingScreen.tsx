@@ -520,7 +520,7 @@ function Step8Goals({
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 
-export function OnboardingScreen({ onComplete }: { onComplete?: () => void }) {
+export function OnboardingScreen({ onComplete }: { onComplete?: (familyId: string) => Promise<void> }) {
   const {
     step,
     totalSteps,
@@ -635,7 +635,11 @@ export function OnboardingScreen({ onComplete }: { onComplete?: () => void }) {
             onBack={prevStep}
             isSubmitting={isSubmitting}
             initialRiskScore={initialRiskScore}
-            onComplete={onComplete}
+            onComplete={
+              submitState.status === 'success'
+                ? () => onComplete?.(submitState.data.familyId)
+                : undefined
+            }
           />
         );
       default:
