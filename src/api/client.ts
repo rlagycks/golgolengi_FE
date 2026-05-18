@@ -20,11 +20,25 @@ export class FhosApiError extends Error {
   }
 }
 
-let isRefreshing = false;
+let onAuthFailure: (() => void) | null = null;
+
+export function setAuthFailureCallback(cb: () => void) {
+  onAuthFailure = cb;
+}
+
+let refreshPromise: Promise<string> | null = null;
 
 async function refreshAccessToken(): Promise<string> {
-  const refreshToken = await tokenStorage.getRefreshToken();
-  if (!refreshToken) throw new FhosApiError(401, 'NO_REFRESH_TOKEN', '로그인이 필요합니다.');
+  const [refreshToken, userId] = await Promise.all([
+    tokenStorage.getRefreshToken(),
+    tokenStorage.getUserId(),
+  ]);
+
+  if (!refreshToken || !userId) {
+    await tokenStorage.clearTokens();
+    onAuthFailure?.();
+    throw new FhosApiError(401, 'NO_REFRESH_TOKEN', '로그인이 필요합니다.');
+  }
 
   const res = await fetch(`${BASE_URL}/auth/refresh`, {
     method: 'POST',
@@ -34,11 +48,11 @@ async function refreshAccessToken(): Promise<string> {
 
   if (!res.ok) {
     await tokenStorage.clearTokens();
+    onAuthFailure?.();
     throw new FhosApiError(401, 'REFRESH_FAILED', '세션이 만료되었습니다. 다시 로그인해주세요.');
   }
 
   const data = await res.json() as { access_token: string; refresh_token: string };
-  const userId = await tokenStorage.getUserId() ?? '';
   await tokenStorage.saveTokens(data.access_token, data.refresh_token, userId);
   return data.access_token;
 }
@@ -50,12 +64,8 @@ export async function request<T>(
 ): Promise<T> {
   const accessToken = await tokenStorage.getAccessToken();
 
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-  };
-  if (accessToken) {
-    headers['Authorization'] = `Bearer ${accessToken}`;
-  }
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (accessToken) headers['Authorization'] = `Bearer ${accessToken}`;
 
   const res = await fetch(`${BASE_URL}${path}`, {
     method,
@@ -63,28 +73,30 @@ export async function request<T>(
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
 
-  if (res.status === 401 && !isRefreshing) {
-    isRefreshing = true;
+  if (res.status === 401) {
+    if (!refreshPromise) {
+      refreshPromise = refreshAccessToken().finally(() => { refreshPromise = null; });
+    }
+
+    let newToken: string;
     try {
-      const newToken = await refreshAccessToken();
-      isRefreshing = false;
-
-      const retryRes = await fetch(`${BASE_URL}${path}`, {
-        method,
-        headers: { ...headers, Authorization: `Bearer ${newToken}` },
-        body: body !== undefined ? JSON.stringify(body) : undefined,
-      });
-
-      if (!retryRes.ok) {
-        const errData = await retryRes.json().catch(() => ({})) as Partial<ApiError>;
-        throw new FhosApiError(retryRes.status, errData.error_code ?? 'UNKNOWN', errData.message ?? '오류가 발생했습니다.', errData.detail);
-      }
-
-      return retryRes.json() as Promise<T>;
+      newToken = await refreshPromise;
     } catch (err) {
-      isRefreshing = false;
       throw err;
     }
+
+    const retryRes = await fetch(`${BASE_URL}${path}`, {
+      method,
+      headers: { ...headers, Authorization: `Bearer ${newToken}` },
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    });
+
+    if (!retryRes.ok) {
+      const errData = await retryRes.json().catch(() => ({})) as Partial<ApiError>;
+      throw new FhosApiError(retryRes.status, errData.error_code ?? 'UNKNOWN', errData.message ?? '오류가 발생했습니다.', errData.detail);
+    }
+
+    return retryRes.json() as Promise<T>;
   }
 
   if (!res.ok) {

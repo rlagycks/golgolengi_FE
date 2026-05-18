@@ -1,5 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
+import * as SecureStore from 'expo-secure-store';
 import { tokenStorage } from '../storage/tokenStorage';
+import { setAuthFailureCallback } from '../api/client';
 
 export interface LoginTokens {
   access_token: string;
@@ -18,15 +20,13 @@ interface AuthState {
 
 interface AuthContextValue extends AuthState {
   login(tokens: LoginTokens): Promise<void>;
-  setOnboarded(familyId: string): void;
+  setOnboarded(familyId: string): Promise<void>;
   logout(): Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 const FAMILY_ID_KEY = 'fhos_family_id';
-
-import * as SecureStore from 'expo-secure-store';
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<AuthState>({
@@ -38,6 +38,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   });
 
   useEffect(() => {
+    setAuthFailureCallback(logout);
+
     (async () => {
       try {
         const [userId, accessToken, familyId] = await Promise.all([
@@ -69,8 +71,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }));
   }
 
-  function setOnboarded(familyId: string): void {
-    SecureStore.setItemAsync(FAMILY_ID_KEY, familyId);
+  async function setOnboarded(familyId: string): Promise<void> {
+    await SecureStore.setItemAsync(FAMILY_ID_KEY, familyId);
     setState(prev => ({ ...prev, familyId, isOnboarded: true }));
   }
 

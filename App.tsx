@@ -35,11 +35,11 @@ function MainApp() {
 }
 
 function AppNavigator() {
-  const { isLoading, isAuthenticated, isOnboarded } = useAuth();
+  const { isLoading, isAuthenticated, isOnboarded, setOnboarded } = useAuth();
 
   if (isLoading) return <LoadingView />;
   if (!isAuthenticated) return <LoginScreen />;
-  if (!isOnboarded) return <OnboardingScreen onComplete={() => {}} />;
+  if (!isOnboarded) return <OnboardingScreen onComplete={setOnboarded} />;
   return <MainApp />;
 }
 

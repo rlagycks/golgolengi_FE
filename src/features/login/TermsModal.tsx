@@ -16,7 +16,7 @@ interface TermsModalProps {
 
 export function TermsModal({ visible, onAgree }: TermsModalProps) {
   return (
-    <Modal visible={visible} animationType="slide" transparent>
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={onAgree}>
       <View style={styles.overlay}>
         <SafeAreaView style={styles.sheet}>
           <View style={styles.content}>
