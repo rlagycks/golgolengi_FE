@@ -12,11 +12,12 @@ import { Colors, Typography, Spacing, Radius, Shadows } from '../../theme';
 interface TermsModalProps {
   visible: boolean;
   onAgree: () => void;
+  onClose: () => void;
 }
 
-export function TermsModal({ visible, onAgree }: TermsModalProps) {
+export function TermsModal({ visible, onAgree, onClose }: TermsModalProps) {
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onAgree}>
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <View style={styles.overlay}>
         <SafeAreaView style={styles.sheet}>
           <View style={styles.content}>

@@ -28,6 +28,24 @@ export function setAuthFailureCallback(cb: () => void) {
 
 let refreshPromise: Promise<string> | null = null;
 
+async function parseResponse<T>(res: Response): Promise<T> {
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({})) as Partial<ApiError>;
+    throw new FhosApiError(
+      res.status,
+      errData.error_code ?? 'UNKNOWN',
+      errData.message ?? '오류가 발생했습니다.',
+      errData.detail,
+    );
+  }
+
+  if (res.status === 204) {
+    return undefined as unknown as T;
+  }
+
+  return res.json() as Promise<T>;
+}
+
 async function refreshAccessToken(): Promise<string> {
   const [refreshToken, userId] = await Promise.all([
     tokenStorage.getRefreshToken(),
@@ -91,20 +109,8 @@ export async function request<T>(
       body: body !== undefined ? JSON.stringify(body) : undefined,
     });
 
-    if (!retryRes.ok) {
-      const errData = await retryRes.json().catch(() => ({})) as Partial<ApiError>;
-      throw new FhosApiError(retryRes.status, errData.error_code ?? 'UNKNOWN', errData.message ?? '오류가 발생했습니다.', errData.detail);
-    }
-
-    return retryRes.json() as Promise<T>;
+    return parseResponse<T>(retryRes);
   }
 
-  if (!res.ok) {
-    const errData = await res.json().catch(() => ({})) as Partial<ApiError>;
-    throw new FhosApiError(res.status, errData.error_code ?? 'UNKNOWN', errData.message ?? '오류가 발생했습니다.', errData.detail);
-  }
-
-  if (res.status === 204) return undefined as unknown as T;
-
-  return res.json() as Promise<T>;
+  return parseResponse<T>(res);
 }

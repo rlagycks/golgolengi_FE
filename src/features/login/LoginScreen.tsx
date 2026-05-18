@@ -99,6 +99,10 @@ export function LoginScreen() {
     }
   }
 
+  function handleTermsClose() {
+    setPendingTokens(null);
+  }
+
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.container}>
@@ -133,6 +137,7 @@ export function LoginScreen() {
       <TermsModal
         visible={pendingTokens !== null}
         onAgree={handleTermsAgree}
+        onClose={handleTermsClose}
       />
     </SafeAreaView>
   );
