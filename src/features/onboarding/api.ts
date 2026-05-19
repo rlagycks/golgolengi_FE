@@ -1,6 +1,6 @@
 import { request } from '../../api/client';
 import { tokenStorage } from '../../storage/tokenStorage';
-import { completeOnboarding as patchCompleteOnboarding } from '../login/api';
+export { completeOnboarding } from '../login/api';
 import type {
   OnboardingData,
   RiskScore,
@@ -41,7 +41,8 @@ function toTakeoutFreq(habits: EatingHabit[]): 'rarely' | 'sometimes' | 'often' 
 
 function toRiskLevel(raw: string): RiskLevel {
   const valid: RiskLevel[] = ['low', 'warning', 'high', 'critical'];
-  return valid.includes(raw as RiskLevel) ? (raw as RiskLevel) : 'warning';
+  if (valid.includes(raw as RiskLevel)) return raw as RiskLevel;
+  throw new Error(`Unexpected risk_level from server: "${raw}"`);
 }
 
 interface FamilyCreateResponse {
@@ -90,7 +91,20 @@ export async function submitOnboarding(data: OnboardingData): Promise<Onboarding
     relation_type: 'self',
   });
 
-  // Step 3: 신체 정보 등록 (birth_date/gender는 온보딩에서 미수집 → 기본값)
+  // Step 2c: 추가 가족 구성원 슬롯 등록 (초대 대기 상태, member_id 없음)
+  const additionalMembers = data.members.filter((m) => m.relationship !== 'self');
+  if (additionalMembers.length > 0) {
+    await Promise.all(
+      additionalMembers.map((m) =>
+        request<void>('POST', '/family-members', {
+          family_id: familyId,
+          relation_type: m.relationship,
+        }),
+      ),
+    );
+  }
+
+  // Step 3: 신체 정보 등록
   const { health_profile_id: healthProfileId } = await request<HealthProfileCreateResponse>(
     'POST',
     '/health-profiles',
@@ -98,8 +112,8 @@ export async function submitOnboarding(data: OnboardingData): Promise<Onboarding
       member_id: memberId,
       height: data.healthInfo.height,
       weight: data.healthInfo.weight,
-      birth_date: '1990-01-01',
-      gender: 'M',
+      birth_date: data.healthInfo.birthDate,
+      gender: data.healthInfo.gender,
     },
   );
 
@@ -117,7 +131,7 @@ export async function submitOnboarding(data: OnboardingData): Promise<Onboarding
 
   // Step 5: 가족력 — 온보딩에서 미수집, 생략
 
-  // Step 6: 생활습관 + 생활리듬 (PATCH는 부분 업데이트 허용)
+  // Step 6: 생활습관 + 생활리듬
   await request<void>('PATCH', `/health-profiles/${healthProfileId}/lifestyle`, {
     shared_meals_per_week: data.lifestyle.mealDaysPerWeek,
     takeout_freq: toTakeoutFreq(data.lifestyle.eatingHabits),
@@ -150,8 +164,4 @@ export async function submitOnboarding(data: OnboardingData): Promise<Onboarding
       delta: 0,
     },
   };
-}
-
-export async function completeOnboarding(): Promise<void> {
-  await patchCompleteOnboarding();
 }

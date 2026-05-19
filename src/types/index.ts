@@ -124,6 +124,8 @@ export interface OnboardingData {
   healthInfo: {
     height: number;
     weight: number;
+    birthDate: string;
+    gender: 'M' | 'F';
     conditions: HealthCondition[];
   };
   lifestyle: {

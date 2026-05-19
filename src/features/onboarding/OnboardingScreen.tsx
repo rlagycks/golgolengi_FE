@@ -257,22 +257,31 @@ const CONDITIONS: Array<{ value: HealthCondition; label: string }> = [
 function Step5HealthInfo({
   height,
   weight,
+  birthDate,
+  gender,
   conditions,
   onChangeHeight,
   onChangeWeight,
+  onChangeBirthDate,
+  onChangeGender,
   onToggleCondition,
   onNext,
   onBack,
 }: {
   height: number;
   weight: number;
+  birthDate: string;
+  gender: 'M' | 'F';
   conditions: HealthCondition[];
   onChangeHeight: (v: number) => void;
   onChangeWeight: (v: number) => void;
+  onChangeBirthDate: (v: string) => void;
+  onChangeGender: (v: 'M' | 'F') => void;
   onToggleCondition: (v: HealthCondition) => void;
   onNext: () => void;
   onBack: () => void;
 }) {
+  const isNextDisabled = height === 0 || weight === 0 || birthDate.trim().length === 0;
   return (
     <>
       <ScrollView style={styles.stepContent} showsVerticalScrollIndicator={false}>
@@ -302,6 +311,29 @@ function Step5HealthInfo({
             />
           </View>
         </View>
+        <Text style={[styles.fieldLabel, { marginTop: Spacing.xl }]}>생년월일</Text>
+        <TextInput
+          style={styles.textInput}
+          value={birthDate}
+          onChangeText={onChangeBirthDate}
+          placeholder="YYYY-MM-DD"
+          placeholderTextColor={Colors.textTertiary}
+          maxLength={10}
+        />
+        <Text style={[styles.fieldLabel, { marginTop: Spacing.xl }]}>성별</Text>
+        <View style={styles.genderRow}>
+          {(['M', 'F'] as const).map((g) => (
+            <Pressable
+              key={g}
+              style={[styles.genderBtn, gender === g && styles.genderBtnActive]}
+              onPress={() => onChangeGender(g)}
+            >
+              <Text style={[styles.genderBtnText, gender === g && styles.genderBtnTextActive]}>
+                {g === 'M' ? '남성' : '여성'}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
         <Text style={[styles.fieldLabel, { marginTop: Spacing.xl }]}>기저질환 (복수 선택)</Text>
         <View style={styles.selectionGrid}>
           {CONDITIONS.map((c) => {
@@ -322,7 +354,7 @@ function Step5HealthInfo({
           })}
         </View>
       </ScrollView>
-      <StepFooter onNext={onNext} onBack={onBack} nextDisabled={height === 0 || weight === 0} />
+      <StepFooter onNext={onNext} onBack={onBack} nextDisabled={isNextDisabled} />
     </>
   );
 }
@@ -532,12 +564,12 @@ export function OnboardingScreen({ onComplete }: { onComplete?: (familyId: strin
     submitState,
   } = useOnboarding();
 
-  const [relationships, setRelationships] = useState<Relationship[]>([]);
-
-  function toggleRelationship(r: Relationship) {
-    setRelationships((prev) =>
-      prev.includes(r) ? prev.filter((x) => x !== r) : [...prev, r],
-    );
+  function toggleMemberRelationship(r: Relationship) {
+    const exists = data.members.some((m) => m.relationship === r);
+    const members = exists
+      ? data.members.filter((m) => m.relationship !== r)
+      : [...data.members, { name: '', relationship: r }];
+    updateData({ members });
   }
 
   function toggleCondition(c: import('../../types').HealthCondition) {
@@ -583,8 +615,8 @@ export function OnboardingScreen({ onComplete }: { onComplete?: (familyId: strin
       case 4:
         return (
           <Step4Relationship
-            selected={relationships}
-            onToggle={toggleRelationship}
+            selected={data.members.map((m) => m.relationship)}
+            onToggle={toggleMemberRelationship}
             onNext={nextStep}
             onBack={prevStep}
           />
@@ -594,9 +626,13 @@ export function OnboardingScreen({ onComplete }: { onComplete?: (familyId: strin
           <Step5HealthInfo
             height={data.healthInfo.height}
             weight={data.healthInfo.weight}
+            birthDate={data.healthInfo.birthDate}
+            gender={data.healthInfo.gender}
             conditions={data.healthInfo.conditions}
             onChangeHeight={(v) => updateData({ healthInfo: { ...data.healthInfo, height: v } })}
             onChangeWeight={(v) => updateData({ healthInfo: { ...data.healthInfo, weight: v } })}
+            onChangeBirthDate={(v) => updateData({ healthInfo: { ...data.healthInfo, birthDate: v } })}
+            onChangeGender={(v) => updateData({ healthInfo: { ...data.healthInfo, gender: v } })}
             onToggleCondition={toggleCondition}
             onNext={nextStep}
             onBack={prevStep}
@@ -823,6 +859,20 @@ const styles = StyleSheet.create({
   selectCardEmoji: { fontSize: 28 },
   selectCardLabel: { ...Typography.labelSM, color: Colors.textSecondary },
   selectCardLabelActive: { color: Colors.primary },
+
+  genderRow: { flexDirection: 'row', gap: Spacing.md, marginTop: Spacing.xs },
+  genderBtn: {
+    flex: 1,
+    paddingVertical: Spacing.md,
+    borderRadius: Radius.md,
+    borderWidth: 1.5,
+    borderColor: Colors.border,
+    alignItems: 'center' as const,
+    backgroundColor: Colors.surface,
+  },
+  genderBtnActive: { borderColor: Colors.primary, backgroundColor: Colors.primaryContainer },
+  genderBtnText: { ...Typography.labelMD, color: Colors.textSecondary },
+  genderBtnTextActive: { color: Colors.primary },
 
   conditionChip: {
     paddingHorizontal: Spacing.lg,
