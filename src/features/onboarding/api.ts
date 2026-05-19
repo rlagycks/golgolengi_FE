@@ -1,3 +1,4 @@
+import { completeOnboarding as patchCompleteOnboarding } from '../login/api';
 import type { OnboardingData, RiskScore } from '../../types';
 
 export interface OnboardingSubmitResult {
@@ -15,4 +16,8 @@ export async function submitOnboarding(
     familyId: 'family_001',
     initialRiskScore: { score: 55, level: 'warning', delta: 0 },
   };
+}
+
+export async function completeOnboarding(): Promise<void> {
+  await patchCompleteOnboarding();
 }
