@@ -104,12 +104,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     let familyId: string | null = null;
     if (tokens.onboardingCompleted) {
-      try {
-        const me = await getMe();
-        familyId = me.familyId;
-      } catch {
-        familyId = null;
-      }
+      const me = await getMe();
+      familyId = me.familyId;
     }
 
     await persistFamilyId(familyId);

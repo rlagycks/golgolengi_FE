@@ -39,8 +39,13 @@ function normalizeLoginTokens(response: OAuthCallbackResponse): LoginTokens {
 }
 
 function normalizeMe(response: MeResponse): CurrentMember {
+  const userId = response.memberId ?? response.member_id;
+  if (!userId) {
+    throw new Error('User profile response is missing memberId');
+  }
+
   return {
-    userId: response.memberId ?? response.member_id ?? '',
+    userId,
     onboardingCompleted:
       response.onboardingCompleted ?? response.onboarding_completed ?? false,
     familyId: response.familyId ?? response.family_id ?? null,
