@@ -42,6 +42,7 @@ export function LoginScreen() {
         refresh_token: 'mock_refresh_token',
         user_id: 'user_mock_001',
         is_new_user: true,
+        onboardingCompleted: false,
       };
       setPendingTokens(mockTokens);
       return;

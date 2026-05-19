@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { submitOnboarding, OnboardingSubmitResult } from './api';
+import { completeOnboarding, submitOnboarding, OnboardingSubmitResult } from './api';
 import type { OnboardingData, DataState } from '../../types';
 
 const INITIAL_DATA: OnboardingData = {
@@ -43,6 +43,7 @@ export function useOnboarding() {
     setSubmitState({ status: 'loading' });
     try {
       const result = await submitOnboarding(data);
+      await completeOnboarding();
       setSubmitState({ status: 'success', data: result });
       setStep(totalSteps);
     } catch (e) {
