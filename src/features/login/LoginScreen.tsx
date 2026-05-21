@@ -8,34 +8,21 @@ import {
   ActivityIndicator,
   Alert,
 } from 'react-native';
-import * as WebBrowser from 'expo-web-browser';
-import { makeRedirectUri } from 'expo-auth-session';
+import { login as kakaoLogin } from '@react-native-seoul/kakao-login';
 import { Colors, Typography, Spacing, Radius, Shadows } from '../../theme';
 import { useAuth, type LoginTokens } from '../../context/AuthContext';
 import { TermsModal } from './TermsModal';
-import {
-  postGoogleCallback,
-  postAppleCallback,
-  postTermsAgreement,
-  GOOGLE_OAUTH_URL,
-  APPLE_OAUTH_URL,
-} from './api';
+import { postKakaoCallback, postTermsAgreement } from './api';
 import { FhosApiError } from '../../api/client';
-
-WebBrowser.maybeCompleteAuthSession();
 
 const USE_MOCK = process.env.EXPO_PUBLIC_USE_MOCK === 'true';
 
-const REDIRECT_URI = makeRedirectUri({ scheme: 'fhos', path: 'oauth/callback' });
-
-type OAuthProvider = 'google' | 'apple';
-
 export function LoginScreen() {
   const { login } = useAuth();
-  const [loading, setLoading] = useState<OAuthProvider | null>(null);
+  const [loading, setLoading] = useState(false);
   const [pendingTokens, setPendingTokens] = useState<LoginTokens | null>(null);
 
-  async function handleOAuth(provider: OAuthProvider) {
+  async function handleKakaoLogin() {
     if (USE_MOCK) {
       const mockTokens: LoginTokens = {
         access_token: 'mock_access_token',
@@ -48,30 +35,10 @@ export function LoginScreen() {
       return;
     }
 
-    setLoading(provider);
+    setLoading(true);
     try {
-      const oauthUrl =
-        provider === 'google'
-          ? `${GOOGLE_OAUTH_URL}?redirect_uri=${encodeURIComponent(REDIRECT_URI)}`
-          : `${APPLE_OAUTH_URL}?redirect_uri=${encodeURIComponent(REDIRECT_URI)}`;
-
-      const result = await WebBrowser.openAuthSessionAsync(oauthUrl, REDIRECT_URI);
-
-      if (result.type !== 'success') return;
-
-      const url = new URL(result.url);
-      const code = url.searchParams.get('code');
-      const idToken = url.searchParams.get('id_token') ?? '';
-
-      if (!code) {
-        Alert.alert('로그인 오류', '인증 코드를 받지 못했습니다. 다시 시도해주세요.');
-        return;
-      }
-
-      const tokens =
-        provider === 'google'
-          ? await postGoogleCallback(code)
-          : await postAppleCallback(code, idToken);
+      const kakaoToken = await kakaoLogin();
+      const tokens = await postKakaoCallback(kakaoToken.accessToken);
 
       if (tokens.is_new_user) {
         setPendingTokens(tokens);
@@ -83,7 +50,7 @@ export function LoginScreen() {
         err instanceof FhosApiError ? err.message : '로그인 중 오류가 발생했습니다.';
       Alert.alert('로그인 실패', message);
     } finally {
-      setLoading(null);
+      setLoading(false);
     }
   }
 
@@ -114,20 +81,13 @@ export function LoginScreen() {
         </View>
 
         <View style={styles.buttons}>
-          <SocialButton
-            label="Google로 시작하기"
-            style={styles.googleBtn}
-            textStyle={styles.googleBtnText}
-            loading={loading === 'google'}
-            onPress={() => handleOAuth('google')}
-          />
-          <SocialButton
-            label="Apple로 시작하기"
-            style={styles.appleBtn}
-            textStyle={styles.appleBtnText}
-            loading={loading === 'apple'}
-            onPress={() => handleOAuth('apple')}
-          />
+          <Pressable style={styles.kakaoBtn} onPress={handleKakaoLogin} disabled={loading}>
+            {loading ? (
+              <ActivityIndicator color="#000" />
+            ) : (
+              <Text style={styles.kakaoBtnText}>카카오로 시작하기</Text>
+            )}
+          </Pressable>
         </View>
 
         <Text style={styles.terms}>
@@ -144,30 +104,6 @@ export function LoginScreen() {
   );
 }
 
-function SocialButton({
-  label,
-  style,
-  textStyle,
-  loading,
-  onPress,
-}: {
-  label: string;
-  style: object;
-  textStyle?: object;
-  loading: boolean;
-  onPress: () => void;
-}) {
-  return (
-    <Pressable style={[styles.socialBtn, style]} onPress={onPress} disabled={loading}>
-      {loading ? (
-        <ActivityIndicator color={Colors.textSecondary} />
-      ) : (
-        <Text style={[styles.socialBtnText, textStyle]}>{label}</Text>
-      )}
-    </Pressable>
-  );
-}
-
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.background },
   container: {
@@ -181,7 +117,8 @@ const styles = StyleSheet.create({
   subtitle: { ...Typography.labelMD, color: Colors.primary, opacity: 0.7 },
   tagline: { ...Typography.bodyLG, color: Colors.textSecondary, textAlign: 'center', marginTop: Spacing.sm },
   buttons: { gap: Spacing.md },
-  socialBtn: {
+  kakaoBtn: {
+    backgroundColor: '#FEE500',
     borderRadius: Radius.md,
     paddingVertical: Spacing.lg,
     alignItems: 'center',
@@ -189,11 +126,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     ...Shadows.sm,
   },
-  googleBtn: { backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border },
-  appleBtn: { backgroundColor: '#000' },
-  socialBtnText: { ...Typography.labelLG, color: Colors.textPrimary },
-  googleBtnText: { color: Colors.textPrimary },
-  appleBtnText: { color: '#fff' },
+  kakaoBtnText: { ...Typography.labelLG, color: '#000' },
   terms: {
     ...Typography.caption,
     color: Colors.textTertiary,
