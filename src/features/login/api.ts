@@ -3,7 +3,7 @@ import type { LoginTokens } from '../../context/AuthContext';
 
 const USE_MOCK = process.env.EXPO_PUBLIC_USE_MOCK === 'true';
 
-interface OAuthCallbackResponse {
+interface KakaoCallbackResponse {
   access_token: string;
   refresh_token: string;
   user_id: string;
@@ -27,7 +27,7 @@ export interface CurrentMember {
   familyId: string | null;
 }
 
-function normalizeLoginTokens(response: OAuthCallbackResponse): LoginTokens {
+function normalizeLoginTokens(response: KakaoCallbackResponse): LoginTokens {
   return {
     access_token: response.access_token,
     refresh_token: response.refresh_token,
@@ -52,7 +52,7 @@ function normalizeMe(response: MeResponse): CurrentMember {
   };
 }
 
-export async function postGoogleCallback(code: string): Promise<LoginTokens> {
+export async function postKakaoCallback(kakaoAccessToken: string): Promise<LoginTokens> {
   if (USE_MOCK) {
     return {
       access_token: 'mock_access_token',
@@ -62,21 +62,9 @@ export async function postGoogleCallback(code: string): Promise<LoginTokens> {
       onboardingCompleted: true,
     };
   }
-  const response = await request<OAuthCallbackResponse>('POST', '/oauth/google/callback', { code });
-  return normalizeLoginTokens(response);
-}
-
-export async function postAppleCallback(code: string, id_token: string): Promise<LoginTokens> {
-  if (USE_MOCK) {
-    return {
-      access_token: 'mock_access_token',
-      refresh_token: 'mock_refresh_token',
-      user_id: 'user_mock_001',
-      is_new_user: false,
-      onboardingCompleted: true,
-    };
-  }
-  const response = await request<OAuthCallbackResponse>('POST', '/oauth/apple/callback', { code, id_token });
+  const response = await request<KakaoCallbackResponse>('POST', '/oauth/kakao/callback', {
+    kakao_access_token: kakaoAccessToken,
+  });
   return normalizeLoginTokens(response);
 }
 
@@ -106,6 +94,3 @@ export async function completeOnboarding(): Promise<void> {
   if (USE_MOCK) return;
   await request<void>('PATCH', '/member/onboarding');
 }
-
-export const GOOGLE_OAUTH_URL = 'https://api.fhos.app/v1/oauth/google/login';
-export const APPLE_OAUTH_URL = 'https://api.fhos.app/v1/oauth/apple/login';
