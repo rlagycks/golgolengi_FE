@@ -5,7 +5,7 @@ import type { OnboardingData, DataState } from '../../types';
 const INITIAL_DATA: OnboardingData = {
   familyName: '',
   members: [],
-  healthInfo: { height: 0, weight: 0, conditions: [] },
+  healthInfo: { height: 0, weight: 0, birthDate: '', gender: 'M' as const, conditions: [] },
   lifestyle: { mealDaysPerWeek: 3, eatingHabits: [] },
   rhythm: { sleepTime: '23:00', wakeTime: '07:00' },
   goals: [],
