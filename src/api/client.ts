@@ -1,6 +1,6 @@
 import { tokenStorage } from '../storage/tokenStorage';
 
-const BASE_URL = 'https://api.fhos.app/v1';
+const BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL ?? 'http://localhost:8080';
 
 export interface ApiError {
   error_code: string;
@@ -30,7 +30,7 @@ let refreshPromise: Promise<string> | null = null;
 
 async function parseResponse<T>(res: Response): Promise<T> {
   if (!res.ok) {
-    const errData = await res.json().catch(() => ({})) as Partial<ApiError>;
+    const errData = await res.json().catch(() => ({})) as { message?: string; error_code?: string; detail?: string };
     throw new FhosApiError(
       res.status,
       errData.error_code ?? 'UNKNOWN',
@@ -43,7 +43,8 @@ async function parseResponse<T>(res: Response): Promise<T> {
     return undefined as unknown as T;
   }
 
-  return res.json() as Promise<T>;
+  const json = await res.json() as { success?: boolean; data?: T };
+  return (json.data !== undefined ? json.data : json) as T;
 }
 
 async function refreshAccessToken(): Promise<string> {
@@ -61,7 +62,7 @@ async function refreshAccessToken(): Promise<string> {
   const res = await fetch(`${BASE_URL}/auth/refresh`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ refresh_token: refreshToken }),
+    body: JSON.stringify({ refreshToken }),
   });
 
   if (!res.ok) {
@@ -70,9 +71,10 @@ async function refreshAccessToken(): Promise<string> {
     throw new FhosApiError(401, 'REFRESH_FAILED', '세션이 만료되었습니다. 다시 로그인해주세요.');
   }
 
-  const data = await res.json() as { access_token: string; refresh_token: string };
-  await tokenStorage.saveTokens(data.access_token, data.refresh_token, userId);
-  return data.access_token;
+  const json = await res.json() as { success?: boolean; data?: { accessToken: string; refreshToken: string } };
+  const data = json.data ?? (json as unknown as { accessToken: string; refreshToken: string });
+  await tokenStorage.saveTokens(data.accessToken, data.refreshToken, userId);
+  return data.accessToken;
 }
 
 export async function request<T>(

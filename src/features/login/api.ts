@@ -4,12 +4,11 @@ import type { LoginTokens } from '../../context/AuthContext';
 const USE_MOCK = process.env.EXPO_PUBLIC_USE_MOCK === 'true';
 
 interface KakaoCallbackResponse {
-  access_token: string;
-  refresh_token: string;
-  user_id: string;
-  is_new_user: boolean;
-  onboardingCompleted?: boolean;
-  onboarding_completed?: boolean;
+  memberId: string;
+  accessToken: string;
+  refreshToken: string;
+  newMember: boolean;
+  onboardingCompleted: boolean;
 }
 
 interface MeResponse {
@@ -29,12 +28,11 @@ export interface CurrentMember {
 
 function normalizeLoginTokens(response: KakaoCallbackResponse): LoginTokens {
   return {
-    access_token: response.access_token,
-    refresh_token: response.refresh_token,
-    user_id: response.user_id,
-    is_new_user: response.is_new_user,
-    onboardingCompleted:
-      response.onboardingCompleted ?? response.onboarding_completed ?? false,
+    access_token: response.accessToken,
+    refresh_token: response.refreshToken,
+    user_id: response.memberId,
+    is_new_user: response.newMember,
+    onboardingCompleted: response.onboardingCompleted,
   };
 }
 
@@ -63,7 +61,7 @@ export async function postKakaoCallback(kakaoAccessToken: string): Promise<Login
     };
   }
   const response = await request<KakaoCallbackResponse>('POST', '/oauth/kakao/callback', {
-    kakao_access_token: kakaoAccessToken,
+    accessToken: kakaoAccessToken,
   });
   return normalizeLoginTokens(response);
 }

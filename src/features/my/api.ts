@@ -1,4 +1,10 @@
+import * as SecureStore from 'expo-secure-store';
+import { tokenStorage } from '../../storage/tokenStorage';
+import { request } from '../../api/client';
+import { riskLevelFromString, BADGE_META } from '../../utils';
 import type { UserProfile, Badge, RankingEntry, StreakDay } from '../../types';
+
+const FAMILY_ID_KEY = 'fhos_family_id';
 
 export interface MyData {
   profile: UserProfile;
@@ -7,91 +13,109 @@ export interface MyData {
   streakDays: StreakDay[];
 }
 
-const BADGES: Badge[] = [
-  {
-    id: 'b1',
-    key: 'first_challenge',
-    label: '첫 챌린지',
-    icon: '첫',
-    earnedAt: '2026.05.01',
-    locked: false,
-    description: '첫 번째 챌린지를 완료하면 수여됩니다.',
-    condition: '챌린지 1회 완료',
-  },
-  {
-    id: 'b2',
-    key: 'streak_7',
-    label: 'streak_7',
-    icon: '7',
-    earnedAt: '2026.05.05',
-    locked: false,
-    description: '7일 연속 챌린지 달성',
-    condition: '가족 챌린지를 7일 연속으로 완료하면 이 배지가 수여됩니다.',
-  },
-  {
-    id: 'b3',
-    key: 'risk_improved',
-    label: 'risk_improved',
-    icon: '개',
-    earnedAt: '2026.05.07',
-    locked: false,
-    description: '리스크 점수 개선',
-    condition: '리스크 점수를 10점 이상 낮추면 수여됩니다.',
-  },
-  {
-    id: 'b4',
-    key: 'streak_30',
-    label: 'streak_30',
-    icon: '30',
-    earnedAt: '',
-    locked: true,
-    description: '30일 연속 챌린지 달성',
-    condition: '30일 연속 필요',
-  },
-  {
-    id: 'b5',
-    key: 'family_complete',
-    label: 'family_complete',
-    icon: '전',
-    earnedAt: '',
-    locked: true,
-    description: '가족 전원 챌린지 완료',
-    condition: '전원 완료 시 획득',
-  },
-];
+interface BackendMemberRiskSummary {
+  memberId: string;
+  totalScore: number;
+  riskLevel: string;
+}
 
-const RANKING: RankingEntry[] = [
-  { rank: 1, memberId: 'm1', memberName: '김철수', score: 28, level: 'low', delta: -5, isSelf: true },
-  { rank: 2, memberId: 'm3', memberName: '민준', score: 41, level: 'warning', delta: -2, isSelf: false },
-  { rank: 3, memberId: 'm2', memberName: '김영희', score: 62, level: 'high', delta: 1, isSelf: false },
-];
+interface BackendRanking {
+  rank: number;
+  memberId: string;
+  name: string;
+  profileImageUrl?: string;
+  totalScore: number;
+  riskLevel: string;
+}
 
-const STREAK_DAYS: StreakDay[] = Array.from({ length: 14 }, (_, i) => ({
-  date: i + 1,
-  done: i < 7,
-  isToday: i === 6,
-}));
+interface BackendBadge {
+  badgeType: string;
+  awardedAt: string;
+}
 
-const MOCK_MY_DATA: MyData = {
-  profile: {
-    id: 'm1',
-    name: '김철수',
-    familyName: '김철수 가족',
-    relationship: 'self',
-    riskScore: { score: 28, level: 'low', delta: -5 },
-    currentStreak: 7,
-    monthlyBadgeCount: 3,
-  },
-  badges: BADGES,
-  ranking: RANKING,
-  streakDays: STREAK_DAYS,
-};
+interface BackendMe {
+  memberId: string;
+  name: string;
+  familyId: string | null;
+  onboardingCompleted: boolean;
+}
+
+interface BackendOverview {
+  familyId: string;
+  name: string;
+}
 
 export async function fetchMyData(): Promise<MyData> {
-  await new Promise((resolve) => setTimeout(resolve, 600));
-  return MOCK_MY_DATA;
+  const [userId, familyId] = await Promise.all([
+    tokenStorage.getUserId(),
+    SecureStore.getItemAsync(FAMILY_ID_KEY),
+  ]);
+
+  if (!userId) throw new Error('인증 정보가 없습니다.');
+
+  const [me, riskSummary, badgesRes, rankingRes, overview] = await Promise.all([
+    request<BackendMe>('GET', '/auth/me'),
+    request<BackendMemberRiskSummary>('GET', `/members/${userId}/risk-summary`).catch(() => null),
+    request<BackendBadge[]>('GET', '/badges').catch(() => [] as BackendBadge[]),
+    familyId
+      ? request<BackendRanking[]>('GET', `/families/${familyId}/ranking`).catch(
+          () => [] as BackendRanking[],
+        )
+      : Promise.resolve([] as BackendRanking[]),
+    familyId
+      ? request<BackendOverview>('GET', `/families/${familyId}/overview`).catch(() => null)
+      : Promise.resolve(null),
+  ]);
+
+  const score = riskSummary ? Math.round(riskSummary.totalScore) : 0;
+  const level = riskSummary ? riskLevelFromString(riskSummary.riskLevel) : 'low';
+
+  const profile: UserProfile = {
+    id: userId,
+    name: me.name ?? '',
+    familyName: overview?.name ?? '',
+    relationship: 'self',
+    riskScore: { score, level },
+    currentStreak: 0,
+    monthlyBadgeCount: badgesRes.length,
+  };
+
+  const badges: Badge[] = badgesRes.map((b, i) => {
+    const meta = BADGE_META[b.badgeType] ?? {
+      label: b.badgeType,
+      icon: '🏆',
+      description: '',
+      condition: '',
+    };
+    return {
+      id: `badge_${i}`,
+      key: b.badgeType,
+      label: meta.label,
+      icon: meta.icon,
+      earnedAt: b.awardedAt ? new Date(b.awardedAt).toLocaleDateString('ko-KR') : '',
+      locked: false,
+      description: meta.description,
+      condition: meta.condition,
+    };
+  });
+
+  const ranking: RankingEntry[] = rankingRes.map((r) => ({
+    rank: r.rank,
+    memberId: r.memberId,
+    memberName: r.name,
+    avatarUrl: r.profileImageUrl,
+    score: Math.round(r.totalScore),
+    level: riskLevelFromString(r.riskLevel),
+    delta: 0,
+    isSelf: r.memberId === userId,
+  }));
+
+  return { profile, badges, ranking, streakDays: [] };
 }
 
 export async function deleteAccount(): Promise<void> {
-  await new Promise((resolve) => setTimeout(resolve, 1000));
+  await request('PATCH', '/users/me/status', {
+    confirm_text: '탈퇴하겠습니다',
+    status: 'inactive',
+  });
 }
