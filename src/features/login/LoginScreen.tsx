@@ -8,14 +8,22 @@ import {
   ActivityIndicator,
   Alert,
 } from 'react-native';
-import { login as kakaoLogin } from '@react-native-seoul/kakao-login';
+import * as WebBrowser from 'expo-web-browser';
 import { Colors, Typography, Spacing, Radius, Shadows } from '../../theme';
 import { useAuth, type LoginTokens } from '../../context/AuthContext';
 import { TermsModal } from './TermsModal';
-import { postKakaoCallback, postTermsAgreement } from './api';
+import { postTermsAgreement } from './api';
 import { FhosApiError } from '../../api/client';
 
 const USE_MOCK = process.env.EXPO_PUBLIC_USE_MOCK === 'true';
+const KAKAO_REST_API_KEY = process.env.EXPO_PUBLIC_KAKAO_REST_API_KEY ?? '';
+const KAKAO_REDIRECT_URI = process.env.EXPO_PUBLIC_KAKAO_REDIRECT_URI ?? '';
+
+const KAKAO_AUTH_URL =
+  `https://kauth.kakao.com/oauth/authorize` +
+  `?client_id=${KAKAO_REST_API_KEY}` +
+  `&redirect_uri=${encodeURIComponent(KAKAO_REDIRECT_URI)}` +
+  `&response_type=code`;
 
 export function LoginScreen() {
   const { login } = useAuth();
@@ -37,8 +45,19 @@ export function LoginScreen() {
 
     setLoading(true);
     try {
-      const kakaoToken = await kakaoLogin();
-      const tokens = await postKakaoCallback(kakaoToken.accessToken);
+      const result = await WebBrowser.openAuthSessionAsync(KAKAO_AUTH_URL, 'fhos://');
+
+      if (result.type !== 'success') {
+        return;
+      }
+
+      const parsed = new URL(result.url);
+      const code = parsed.searchParams.get('code');
+      if (!code) throw new Error('카카오 인가 코드를 받지 못했습니다.');
+
+      const kakaoAccessToken = await exchangeCodeForToken(code);
+      const { postKakaoCallback } = await import('./api');
+      const tokens = await postKakaoCallback(kakaoAccessToken);
 
       if (tokens.is_new_user) {
         setPendingTokens(tokens);
@@ -102,6 +121,26 @@ export function LoginScreen() {
       />
     </SafeAreaView>
   );
+}
+
+async function exchangeCodeForToken(code: string): Promise<string> {
+  const params = new URLSearchParams({
+    grant_type: 'authorization_code',
+    client_id: KAKAO_REST_API_KEY,
+    redirect_uri: KAKAO_REDIRECT_URI,
+    code,
+  });
+
+  const res = await fetch('https://kauth.kakao.com/oauth/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: params.toString(),
+  });
+
+  if (!res.ok) throw new Error('카카오 토큰 교환 실패');
+  const data = await res.json() as { access_token?: string };
+  if (!data.access_token) throw new Error('카카오 access_token 없음');
+  return data.access_token;
 }
 
 const styles = StyleSheet.create({

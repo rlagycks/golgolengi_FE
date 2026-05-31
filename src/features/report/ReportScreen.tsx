@@ -7,6 +7,8 @@ import {
   StyleSheet,
   SafeAreaView,
   Dimensions,
+  Platform,
+  StatusBar,
 } from 'react-native';
 import { Colors, Typography, Spacing, Radius, Shadows } from '../../theme';
 import { RiskBadge } from '../../components/RiskBadge';

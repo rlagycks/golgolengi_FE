@@ -9,6 +9,8 @@ import {
   StyleSheet,
   SafeAreaView,
   FlatList,
+  Platform,
+  StatusBar,
 } from 'react-native';
 import { Colors, Typography, Spacing, Radius, Shadows } from '../../theme';
 import { Chip } from '../../components/Chip';

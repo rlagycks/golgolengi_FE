@@ -100,10 +100,7 @@ function Step1Welcome({ onNext }: { onNext: () => void }) {
       </View>
       <View style={styles.socialSection}>
         <Pressable style={[styles.socialBtn, styles.kakaoBtn]} onPress={onNext}>
-          <Text style={styles.kakaoBtnText}>카카오로 시작하기</Text>
-        </Pressable>
-        <Pressable style={[styles.socialBtn, styles.appleBtn]} onPress={onNext}>
-          <Text style={styles.appleBtnText}>Apple로 시작하기</Text>
+          <Text style={styles.kakaoBtnText}>시작하기</Text>
         </Pressable>
       </View>
     </View>

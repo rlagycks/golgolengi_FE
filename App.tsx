@@ -46,7 +46,7 @@ function AppNavigator() {
 export default function App() {
   return (
     <AuthProvider>
-      <StatusBar style="dark" />
+      <StatusBar style="dark" translucent={false} />
       <AppNavigator />
     </AuthProvider>
   );

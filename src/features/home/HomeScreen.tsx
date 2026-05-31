@@ -6,6 +6,8 @@ import {
   Pressable,
   StyleSheet,
   SafeAreaView,
+  Platform,
+  StatusBar,
 } from 'react-native';
 import { Colors, Typography, Spacing, Radius, Shadows } from '../../theme';
 import { Avatar } from '../../components/Avatar';
